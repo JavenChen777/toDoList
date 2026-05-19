@@ -1,0 +1,65 @@
+{
+  "version": "1.0",
+  "tasks": [
+    {
+      "id": 1,
+      "title": "完成项目文档",
+      "description": "编写并完善项目的技术文档，包括架构设计和 API 说明",
+      "status": "todo",
+      "created_at": "2025-11-11T09:00:00",
+      "completed_at": "",
+      "category": "工作",
+      "priority": 5
+    },
+    {
+      "id": 2,
+      "title": "代码审查",
+      "description": "审查团队成员提交的代码变更",
+      "status": "todo",
+      "created_at": "2025-11-11T10:30:00",
+      "completed_at": "",
+      "category": "工作",
+      "priority": 4
+    },
+    {
+      "id": 3,
+      "title": "学习 Qt Charts",
+      "description": "深入学习 Qt Charts 模块，掌握各种图表的使用方法",
+      "status": "todo",
+      "created_at": "2025-11-11T11:00:00",
+      "completed_at": "",
+      "category": "学习",
+      "priority": 3
+    },
+    {
+      "id": 4,
+      "title": "购买日用品",
+      "description": "去超市购买本周需要的日用品",
+      "status": "todo",
+      "created_at": "2025-11-11T14:00:00",
+      "completed_at": "",
+      "category": "生活",
+      "priority": 2
+    },
+    {
+      "id": 5,
+      "title": "修复 Bug #123",
+      "description": "修复任务列表滚动时的显示问题",
+      "status": "completed",
+      "created_at": "2025-11-10T09:00:00",
+      "completed_at": "2025-11-10T15:30:00",
+      "category": "工作",
+      "priority": 5
+    },
+    {
+      "id": 6,
+      "title": "备份数据库",
+      "description": "每周定期备份数据库到云存储",
+      "status": "completed",
+      "created_at": "2025-11-09T08:00:00",
+      "completed_at": "2025-11-09T08:45:00",
+      "category": "运维",
+      "priority": 5
+    }
+  ]
+}
