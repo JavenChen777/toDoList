@@ -63,6 +63,7 @@ private:
     QList<TaskItem> m_tasks;
     QList<TaskItem> m_filteredTasks;
     bool m_filtered;
+    bool m_statusFilterEnabled;
     TaskItem::Status m_filterStatus;
     QString m_searchText;
 

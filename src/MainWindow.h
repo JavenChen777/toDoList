@@ -85,6 +85,8 @@ private:
     bool m_manualMode;           // 用户点击后进入手动模式
     bool m_showCompleted;        // 是否显示已完成任务
     bool m_isAutoShowing;        // 标记是否正在自动显示过程中
+    int m_closeBehavior;         // 关闭按钮行为: 0询问, 1退出, 2最小化到托盘
+    bool m_forceQuit;            // 菜单/托盘退出时跳过最小化逻辑
     
     void setupUi();
     void setupConnections();
@@ -102,6 +104,7 @@ private:
     void updateTaskCount();
     void applyTheme(bool darkMode);
     void applyStickyNoteStyle();
+    void quitApplication();
 };
 
 #endif // MAINWINDOW_H

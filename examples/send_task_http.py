@@ -8,8 +8,8 @@ import requests
 import json
 from datetime import datetime, timedelta
 
-# 设置服务器地址（可以是本机或局域网内的其他机器）
-SERVER_IP = "localhost"  # 或者使用实际IP地址，如 "192.168.1.100"
+# 设置服务器地址（当前版本默认仅支持本机）
+SERVER_IP = "127.0.0.1"
 SERVER_PORT = 8888
 API_URL = f"http://{SERVER_IP}:{SERVER_PORT}/api/tasks"
 
@@ -51,4 +51,4 @@ except Exception as e:
     print(f"❌ 错误: {e}")
 
 print()
-print("💡 提示: 如果要从其他机器访问，请将 SERVER_IP 改为运行应用的机器的 IP 地址")
+print("💡 提示: 当前版本默认仅监听 127.0.0.1，请在运行应用的同一台机器上调用")

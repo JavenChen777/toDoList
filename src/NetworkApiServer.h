@@ -5,6 +5,7 @@
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QList>
+#include <QHash>
 
 /**
  * @brief 网络 API 服务器
@@ -39,6 +40,7 @@ private slots:
 private:
     QTcpServer* m_server;
     QList<QTcpSocket*> m_clients;
+    QHash<QTcpSocket*, QByteArray> m_pendingRequests;
     
     void processHttpRequest(QTcpSocket* socket, const QByteArray& data);
     void sendHttpResponse(QTcpSocket* socket, int statusCode, const QString& message);

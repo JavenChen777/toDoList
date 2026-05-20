@@ -4,6 +4,35 @@
 #include <QJsonArray>
 #include <QNetworkInterface>
 #include <QDateTime>
+#include <QPointer>
+#include <QTimer>
+
+namespace {
+constexpr int MaxHeaderSize = 16 * 1024;
+constexpr int MaxBodySize = 1024 * 1024;
+constexpr int RequestTimeoutMs = 30 * 1000;
+
+int contentLengthFromHeaders(const QByteArray& headers)
+{
+    const QList<QByteArray> lines = headers.split('\n');
+    for (QByteArray line : lines) {
+        line = line.trimmed();
+        int colon = line.indexOf(':');
+        if (colon <= 0) {
+            continue;
+        }
+
+        QByteArray name = line.left(colon).trimmed();
+        if (name.compare("Content-Length", Qt::CaseInsensitive) == 0) {
+            bool ok = false;
+            int length = line.mid(colon + 1).trimmed().toInt(&ok);
+            return ok ? length : -1;
+        }
+    }
+
+    return 0;
+}
+}
 
 NetworkApiServer::NetworkApiServer(QObject* parent)
     : QObject(parent)
@@ -23,12 +52,12 @@ bool NetworkApiServer::start(quint16 port)
         return true;
     }
     
-    if (!m_server->listen(QHostAddress::Any, port)) {
+    if (!m_server->listen(QHostAddress::LocalHost, port)) {
         qWarning() << "Failed to start network API server on port" << port;
         return false;
     }
     
-    qDebug() << "Network API server started on port" << port;
+    qDebug() << "Network API server started on 127.0.0.1 port" << port;
     qDebug() << "API accessible at: http://" + serverAddress() + ":" + QString::number(port) + "/api/tasks";
     return true;
 }
@@ -40,6 +69,7 @@ void NetworkApiServer::stop()
     }
     
     for (QTcpSocket* client : m_clients) {
+        m_pendingRequests.remove(client);
         client->disconnectFromHost();
         client->deleteLater();
     }
@@ -58,16 +88,7 @@ quint16 NetworkApiServer::serverPort() const
 
 QString NetworkApiServer::serverAddress() const
 {
-    // 获取本机 IP 地址
-    QList<QHostAddress> addresses = QNetworkInterface::allAddresses();
-    for (const QHostAddress& address : addresses) {
-        if (address != QHostAddress::LocalHost && 
-            address.toIPv4Address() && 
-            !address.isLoopback()) {
-            return address.toString();
-        }
-    }
-    return "localhost";
+    return "127.0.0.1";
 }
 
 void NetworkApiServer::onNewConnection()
@@ -78,6 +99,16 @@ void NetworkApiServer::onNewConnection()
         
         connect(client, &QTcpSocket::readyRead, this, &NetworkApiServer::onReadyRead);
         connect(client, &QTcpSocket::disconnected, this, &NetworkApiServer::onDisconnected);
+
+        QPointer<QTcpSocket> guardedClient(client);
+        QTimer::singleShot(RequestTimeoutMs, this, [this, guardedClient]() {
+            if (!guardedClient || !m_clients.contains(guardedClient.data())) {
+                return;
+            }
+
+            sendHttpResponse(guardedClient.data(), 408, "Request timeout");
+            m_pendingRequests.remove(guardedClient.data());
+        });
     }
 }
 
@@ -87,8 +118,46 @@ void NetworkApiServer::onReadyRead()
     if (!client)
         return;
     
-    QByteArray data = client->readAll();
-    processHttpRequest(client, data);
+    QByteArray& buffer = m_pendingRequests[client];
+    buffer.append(client->readAll());
+
+    int headerEnd = buffer.indexOf("\r\n\r\n");
+    if (headerEnd == -1) {
+        if (buffer.size() > MaxHeaderSize) {
+            sendHttpResponse(client, 413, "Request header too large");
+            m_pendingRequests.remove(client);
+        }
+        return;
+    }
+
+    if (headerEnd > MaxHeaderSize) {
+        sendHttpResponse(client, 413, "Request header too large");
+        m_pendingRequests.remove(client);
+        return;
+    }
+
+    QByteArray headers = buffer.left(headerEnd);
+    int contentLength = contentLengthFromHeaders(headers);
+    if (contentLength < 0) {
+        sendHttpResponse(client, 400, "Invalid Content-Length");
+        m_pendingRequests.remove(client);
+        return;
+    }
+
+    if (contentLength > MaxBodySize) {
+        sendHttpResponse(client, 413, "Request body too large");
+        m_pendingRequests.remove(client);
+        return;
+    }
+
+    int requestSize = headerEnd + 4 + contentLength;
+    if (buffer.size() < requestSize) {
+        return;
+    }
+
+    QByteArray request = buffer.left(requestSize);
+    m_pendingRequests.remove(client);
+    processHttpRequest(client, request);
 }
 
 void NetworkApiServer::onDisconnected()
@@ -96,14 +165,21 @@ void NetworkApiServer::onDisconnected()
     QTcpSocket* client = qobject_cast<QTcpSocket*>(sender());
     if (client) {
         m_clients.removeOne(client);
+        m_pendingRequests.remove(client);
         client->deleteLater();
     }
 }
 
 void NetworkApiServer::processHttpRequest(QTcpSocket* socket, const QByteArray& data)
 {
-    QString request = QString::fromUtf8(data);
-    QStringList lines = request.split("\r\n");
+    int bodyStart = data.indexOf("\r\n\r\n");
+    if (bodyStart == -1) {
+        sendHttpResponse(socket, 400, "No JSON data");
+        return;
+    }
+
+    QString headerText = QString::fromLatin1(data.left(bodyStart));
+    QStringList lines = headerText.split("\r\n");
     
     if (lines.isEmpty()) {
         sendHttpResponse(socket, 400, "Bad Request");
@@ -121,23 +197,16 @@ void NetworkApiServer::processHttpRequest(QTcpSocket* socket, const QByteArray& 
     QString path = requestLine[1];
     
     // 只接受 POST 请求到 /api/tasks
-    if (method != "POST" || !path.startsWith("/api/tasks")) {
+    if (method != "POST" || path != "/api/tasks") {
         sendHttpResponse(socket, 405, "Method Not Allowed");
         return;
     }
     
-    // 查找 JSON 数据（在空行之后）
-    int bodyStart = request.indexOf("\r\n\r\n");
-    if (bodyStart == -1) {
-        sendHttpResponse(socket, 400, "No JSON data");
-        return;
-    }
-    
-    QString jsonData = request.mid(bodyStart + 4);
+    QByteArray jsonData = data.mid(bodyStart + 4);
     
     // 解析 JSON
     QJsonParseError parseError;
-    QJsonDocument doc = QJsonDocument::fromJson(jsonData.toUtf8(), &parseError);
+    QJsonDocument doc = QJsonDocument::fromJson(jsonData, &parseError);
     
     if (parseError.error != QJsonParseError::NoError) {
         sendHttpResponse(socket, 400, "Invalid JSON: " + parseError.errorString());
@@ -206,7 +275,9 @@ QByteArray NetworkApiServer::buildHttpResponse(int statusCode, const QString& co
     switch (statusCode) {
         case 200: statusText = "OK"; break;
         case 400: statusText = "Bad Request"; break;
+        case 408: statusText = "Request Timeout"; break;
         case 405: statusText = "Method Not Allowed"; break;
+        case 413: statusText = "Payload Too Large"; break;
         case 500: statusText = "Internal Server Error"; break;
         default: statusText = "Unknown"; break;
     }
@@ -215,7 +286,6 @@ QByteArray NetworkApiServer::buildHttpResponse(int statusCode, const QString& co
     response += "HTTP/1.1 " + QByteArray::number(statusCode) + " " + statusText.toUtf8() + "\r\n";
     response += "Content-Type: " + contentType.toUtf8() + "; charset=utf-8\r\n";
     response += "Content-Length: " + QByteArray::number(body.length()) + "\r\n";
-    response += "Access-Control-Allow-Origin: *\r\n";
     response += "Connection: close\r\n";
     response += "\r\n";
     response += body;

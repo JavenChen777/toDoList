@@ -1,8 +1,8 @@
 # 网络 API 测试脚本
 # 通过 HTTP POST 添加任务到待办事项应用
 
-# 设置服务器地址（可以是本机或局域网内的其他机器）
-$serverIp = "localhost"  # 或者使用实际IP地址，如 "192.168.1.100"
+# 设置服务器地址（当前版本默认仅支持本机）
+$serverIp = "127.0.0.1"
 $serverPort = 8888
 $apiUrl = "http://${serverIp}:${serverPort}/api/tasks"
 
@@ -38,4 +38,4 @@ catch {
 }
 
 Write-Host ""
-Write-Host "提示: 如果要从其他机器访问，请将 `$serverIp 改为运行应用的机器的 IP 地址" -ForegroundColor Yellow
+Write-Host "提示: 当前版本默认仅监听 127.0.0.1，请在运行应用的同一台机器上调用" -ForegroundColor Yellow

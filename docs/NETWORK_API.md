@@ -2,34 +2,22 @@
 
 ## 概述
 
-待办事项应用提供了网络 API 接口，允许局域网内的其他机器通过 HTTP 请求添加任务。
+待办事项应用提供了网络 API 接口，默认只允许本机通过 HTTP 请求添加任务。
 
 ## 快速开始
 
 ### 1. 启动应用
 
-在运行应用的机器上启动 `TodoList.exe`。应用会自动在端口 **8888** 上启动网络 API 服务器。
+在运行应用的机器上启动 `TodoList.exe`。应用会自动在本机 `127.0.0.1` 的 **8888** 端口启动网络 API 服务器。
 
-### 2. 获取服务器 IP 地址
-
-在运行应用的机器上，打开 PowerShell 或命令提示符：
-
-```powershell
-ipconfig
-```
-
-查找 "IPv4 地址" 或 "IPv4 Address"，例如：`192.168.1.100`
-
-应用启动时会在调试日志中显示访问地址（如果从控制台运行）。
-
-### 3. 从其他机器发送请求
+### 2. 从本机发送请求
 
 ## API 规范
 
 ### 端点
 
 ```
-POST http://<服务器IP>:8888/api/tasks
+POST http://127.0.0.1:8888/api/tasks
 ```
 
 ### 请求头
@@ -98,8 +86,8 @@ Content-Type: application/json; charset=utf-8
 ### PowerShell (Windows)
 
 ```powershell
-# 设置服务器 IP
-$serverIp = "192.168.1.100"  # 替换为实际 IP
+# 设置服务器地址
+$serverIp = "127.0.0.1"
 $apiUrl = "http://${serverIp}:8888/api/tasks"
 
 # 创建任务数据
@@ -130,8 +118,8 @@ $response.Content | ConvertFrom-Json | ConvertTo-Json -Depth 3
 ```python
 import requests
 
-# 设置服务器 IP
-SERVER_IP = "192.168.1.100"  # 替换为实际 IP
+# 设置服务器地址
+SERVER_IP = "127.0.0.1"
 API_URL = f"http://{SERVER_IP}:8888/api/tasks"
 
 # 创建任务数据
@@ -158,7 +146,7 @@ python examples/send_task_http.py
 ### curl (跨平台)
 
 ```bash
-curl -X POST http://192.168.1.100:8888/api/tasks \
+curl -X POST http://127.0.0.1:8888/api/tasks \
   -H "Content-Type: application/json" \
   -d '{"title":"测试任务","description":"测试描述","category":"测试","priority":3}'
 ```
@@ -168,7 +156,7 @@ curl -X POST http://192.168.1.100:8888/api/tasks \
 ```javascript
 const fetch = require('node-fetch');
 
-const SERVER_IP = '192.168.1.100';  // 替换为实际 IP
+const SERVER_IP = '127.0.0.1';
 const API_URL = `http://${SERVER_IP}:8888/api/tasks`;
 
 const task = {
@@ -194,24 +182,13 @@ fetch(API_URL, {
 
 ⚠️ **重要提示**
 
-- **无身份验证**：网络 API 没有身份验证机制，任何能访问该端口的设备都可以添加任务
-- **仅限局域网**：建议仅在可信的局域网内使用，**不要暴露到公网**
-- **防火墙**：端口 8888 可能被 Windows 防火墙阻止
+- **无身份验证**：网络 API 没有身份验证机制
+- **默认仅本机**：服务默认监听 `127.0.0.1`，避免局域网内其他设备直接写入
+- **不要暴露到公网**：如果未来改为监听局域网地址，应先增加认证或访问控制
 
-### 添加防火墙规则
+### 远程访问
 
-如果其他机器无法访问，需要在运行应用的机器上添加防火墙规则：
-
-```powershell
-# 以管理员身份运行 PowerShell
-New-NetFirewallRule -DisplayName "TodoList API" -Direction Inbound -LocalPort 8888 -Protocol TCP -Action Allow
-```
-
-### VPN 方案
-
-如需远程访问，建议使用 VPN：
-- 使用 Tailscale、WireGuard 等建立虚拟局域网
-- 通过 VPN 连接后使用 VPN 分配的 IP 地址访问
+当前版本默认不开放局域网访问。如需恢复远程访问，建议先增加 token 或其他认证机制，再改为监听指定网卡地址。
 
 ## 集成场景
 
@@ -233,7 +210,7 @@ task = {
     "category": "工作",
     "priority": 4
 }
-requests.post("http://192.168.1.100:8888/api/tasks", json=task)
+requests.post("http://127.0.0.1:8888/api/tasks", json=task)
 ```
 
 ### 2. CI/CD 集成
@@ -243,7 +220,7 @@ requests.post("http://192.168.1.100:8888/api/tasks", json=task)
 ```bash
 # 构建失败时创建任务
 if [ $BUILD_STATUS == "failed" ]; then
-  curl -X POST http://192.168.1.100:8888/api/tasks \
+  curl -X POST http://127.0.0.1:8888/api/tasks \
     -H "Content-Type: application/json" \
     -d "{\"title\":\"构建失败\",\"description\":\"项目 $PROJECT_NAME 构建失败\",\"priority\":5}"
 fi
@@ -262,7 +239,7 @@ $task = @{
     priority = 3
 } | ConvertTo-Json -Compress
 
-Invoke-WebRequest -Uri "http://localhost:8888/api/tasks" `
+Invoke-WebRequest -Uri "http://127.0.0.1:8888/api/tasks" `
     -Method Post -Body $task -ContentType "application/json"
 ```
 
@@ -279,7 +256,7 @@ if temperature > threshold:
         "category": "维护",
         "priority": 5
     }
-    requests.post("http://192.168.1.100:8888/api/tasks", json=task)
+    requests.post("http://127.0.0.1:8888/api/tasks", json=task)
 ```
 
 ## 故障排除
@@ -287,12 +264,12 @@ if temperature > threshold:
 ### 无法连接
 
 1. **检查应用是否运行**：确保 TodoList.exe 正在运行
-2. **检查 IP 地址**：确认服务器 IP 地址正确
-3. **检查防火墙**：添加防火墙规则允许端口 8888
-4. **检查网络连接**：确保客户端和服务器在同一局域网
+2. **检查地址**：确认使用 `http://127.0.0.1:8888/api/tasks`
+3. **检查端口占用**：确认 8888 端口未被其他程序占用
+4. **确认请求来自本机**：当前版本默认不接受其他机器连接
 5. **测试连接**：
    ```powershell
-   Test-NetConnection -ComputerName 192.168.1.100 -Port 8888
+   Test-NetConnection -ComputerName 127.0.0.1 -Port 8888
    ```
 
 ### 请求失败
@@ -319,12 +296,12 @@ headers = {'Content-Type': 'application/json; charset=utf-8'}
 
 | 特性 | 本地 API (命名管道) | 网络 API (HTTP) |
 |------|-------------------|----------------|
-| 访问范围 | 仅本机 | 局域网内所有设备 |
+| 访问范围 | 仅本机 | 默认仅本机 |
 | 协议 | Windows 命名管道 | HTTP/TCP |
 | 端口 | 无 | 8888 |
 | 使用难度 | 较复杂 | 简单 |
 | 跨平台 | 仅 Windows | 所有平台 |
-| 推荐场景 | 本机进程间通信 | 远程访问、集成 |
+| 推荐场景 | 本机进程间通信 | 本机 HTTP 集成、脚本调用 |
 
 **推荐使用网络 API**，因为它更简单、更通用。
 
@@ -336,4 +313,4 @@ headers = {'Content-Type': 'application/json; charset=utf-8'}
 
 ---
 
-**注意**：网络 API 设计用于可信环境，请勿在不安全的网络中使用。
+**注意**：网络 API 默认仅绑定 `127.0.0.1`；请勿在缺少认证的情况下暴露到不安全网络。

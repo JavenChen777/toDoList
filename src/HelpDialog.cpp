@@ -162,19 +162,19 @@ strong { color: #4CAF50; }
 
 <h2>🔌 API 接口说明</h2>
 
-<h3>📡 网络 API（推荐 - 支持远程访问）</h3>
+<h3>📡 网络 API（推荐 - 默认仅本机访问）</h3>
 
 <div class="network-box">
-<strong>接口地址：</strong>http://[服务器IP]:8888/api/tasks<br>
+<strong>接口地址：</strong>http://127.0.0.1:8888/api/tasks<br>
 <strong>请求方法：</strong>HTTP POST<br>
 <strong>数据格式：</strong>JSON<br>
 <strong>编码：</strong>UTF-8<br>
-<strong>适用场景：</strong>远程机器访问、局域网内其他设备、集成到 Web 应用
+<strong>适用场景：</strong>本机脚本调用、自动化工具、集成到本机 Web 应用
 </div>
 
 <div class="code">
-<span class="comment"># PowerShell 示例（适用于本机或远程）</span>
-<span class="keyword">$serverIp</span> = <span class="string">"192.168.1.100"</span>  <span class="comment"># 运行应用的机器IP</span>
+<span class="comment"># PowerShell 示例（当前版本默认仅支持本机）</span>
+<span class="keyword">$serverIp</span> = <span class="string">"127.0.0.1"</span>
 <span class="keyword">$apiUrl</span> = <span class="string">"http://${serverIp}:8888/api/tasks"</span>
 
 <span class="keyword">$task</span> = @{
@@ -195,7 +195,7 @@ Invoke-WebRequest -Uri <span class="keyword">$apiUrl</span> -Method Post -Body <
 <span class="keyword">import</span> requests
 <span class="keyword">import</span> json
 
-SERVER_IP = <span class="string">"192.168.1.100"</span>  <span class="comment"># 运行应用的机器IP</span>
+SERVER_IP = <span class="string">"127.0.0.1"</span>
 API_URL = <span class="string">f"http://{SERVER_IP}:8888/api/tasks"</span>
 
 task = {
@@ -212,7 +212,7 @@ response = requests.post(API_URL, json=task)
 
 <div class="code">
 <span class="comment"># curl 示例（跨平台）</span>
-curl -X POST http://192.168.1.100:8888/api/tasks \
+curl -X POST http://127.0.0.1:8888/api/tasks \
   -H <span class="string">"Content-Type: application/json"</span> \
   -d <span class="string">'{"title":"测试任务","description":"测试描述","category":"测试","priority":3}'</span>
 </div>
@@ -284,21 +284,21 @@ curl -X POST http://192.168.1.100:8888/api/tasks \
 <div class="warning">
 <strong>⚠️ 重要提示：</strong>
 <ul>
-<li>网络 API <strong>没有身份验证</strong>，仅建议在<strong>可信的局域网</strong>内使用</li>
-<li>请勿将服务暴露到公网，避免安全风险</li>
-<li>如需公网访问，建议配置防火墙规则或使用 VPN</li>
-<li>端口 8888 可能被防火墙阻止，需要添加防火墙规则允许访问</li>
+<li>网络 API <strong>没有身份验证</strong>，当前默认仅监听 <strong>127.0.0.1</strong></li>
+<li>请勿在缺少认证的情况下将服务暴露到局域网或公网</li>
+<li>如需远程访问，建议先增加 token 或其他认证机制</li>
+<li>端口 8888 可能被其他本机程序占用</li>
 </ul>
 </div>
 
-<h3>🌐 获取服务器 IP 地址</h3>
+<h3>🌐 访问地址</h3>
 
 <div class="api-box">
-在运行应用的机器上，打开 PowerShell 或命令提示符：
+当前版本默认仅监听本机地址：
 <ul>
-<li><code>ipconfig</code> (Windows)</li>
-<li>查找 "IPv4 地址" 或 "IPv4 Address"</li>
-<li>例如：192.168.1.100</li>
+<li><code>http://127.0.0.1:8888/api/tasks</code></li>
+<li>请在运行应用的同一台机器上调用</li>
+<li>如需远程访问，请先增加认证机制再调整监听地址</li>
 </ul>
 应用启动时会在日志中显示访问地址。
 </div>

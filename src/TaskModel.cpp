@@ -3,6 +3,7 @@
 TaskModel::TaskModel(QObject* parent)
     : QAbstractListModel(parent)
     , m_filtered(false)
+    , m_statusFilterEnabled(false)
     , m_filterStatus(TaskItem::Todo)
 {
 }
@@ -205,6 +206,7 @@ void TaskModel::setTasks(const QList<TaskItem>& tasks)
 void TaskModel::setFilterStatus(TaskItem::Status status)
 {
     m_filterStatus = status;
+    m_statusFilterEnabled = true;
     m_filtered = true;
     beginResetModel();
     applyFilter();
@@ -218,6 +220,7 @@ void TaskModel::clearFilter()
         
     beginResetModel();
     m_filtered = false;
+    m_statusFilterEnabled = false;
     m_filteredTasks.clear();
     m_searchText.clear();
     endResetModel();
@@ -226,12 +229,14 @@ void TaskModel::clearFilter()
 void TaskModel::setSearchText(const QString& text)
 {
     m_searchText = text;
-    if (!text.isEmpty() || m_filtered) {
-        beginResetModel();
-        m_filtered = true;
+    beginResetModel();
+    m_filtered = m_statusFilterEnabled || !m_searchText.isEmpty();
+    if (m_filtered) {
         applyFilter();
-        endResetModel();
+    } else {
+        m_filteredTasks.clear();
     }
+    endResetModel();
 }
 
 void TaskModel::applyFilter()
@@ -247,9 +252,7 @@ void TaskModel::applyFilter()
 bool TaskModel::matchesFilter(const TaskItem& task) const
 {
     // 状态过滤
-    if (m_filtered && task.status() != m_filterStatus && !m_searchText.isEmpty()) {
-        // 如果有搜索文本，忽略状态过滤
-    } else if (m_filtered && m_searchText.isEmpty() && task.status() != m_filterStatus) {
+    if (m_statusFilterEnabled && task.status() != m_filterStatus) {
         return false;
     }
 

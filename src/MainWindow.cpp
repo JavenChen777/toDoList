@@ -16,11 +16,15 @@
 #include <QFile>
 #include <QTextStream>
 #include <QDateTime>
+#include <QStandardPaths>
+#include <QDir>
 #include <algorithm>
 
 // 简单的日志函数
 void logToFile(const QString& message) {
-    QFile file("C:/AI/toDoList/debug.log");
+    QString logDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    QDir().mkpath(logDir);
+    QFile file(QDir(logDir).filePath("debug.log"));
     if (file.open(QIODevice::Append | QIODevice::Text)) {
         QTextStream out(&file);
         out << QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") << " - " << message << "\n";
@@ -44,6 +48,8 @@ MainWindow::MainWindow(QWidget* parent)
     , m_manualMode(false)
     , m_showCompleted(false)
     , m_isAutoShowing(false)
+    , m_closeBehavior(0)
+    , m_forceQuit(false)
 {
     ui->setupUi(this);
     setupUi();
@@ -63,7 +69,7 @@ MainWindow::MainWindow(QWidget* parent)
         qWarning() << "Failed to start network API server";
     } else {
         qDebug() << "Network API server started successfully";
-        qDebug() << "You can access the API from other machines at:";
+        qDebug() << "Network API is available locally at:";
         qDebug() << "http://" + m_networkApiServer->serverAddress() + ":8888/api/tasks";
     }
     
@@ -121,6 +127,8 @@ void MainWindow::setupConnections()
     connect(ui->actionSettings, &QAction::triggered, this, &MainWindow::onShowSettings);
     connect(ui->actionDeleteTask, &QAction::triggered, this, &MainWindow::onDeleteTask);
     connect(ui->actionHelp, &QAction::triggered, this, &MainWindow::onShowHelp);
+    disconnect(ui->actionExit, nullptr, this, nullptr);
+    connect(ui->actionExit, &QAction::triggered, this, &MainWindow::quitApplication);
     
     // 列表视图
     connect(ui->taskListView, &QListView::doubleClicked, this, &MainWindow::onTaskDoubleClicked);
@@ -141,6 +149,7 @@ void MainWindow::setupConnections()
     connect(m_taskModel, &TaskModel::taskAdded, this, &MainWindow::updateTaskCount);
     connect(m_taskModel, &TaskModel::taskRemoved, this, &MainWindow::updateTaskCount);
     connect(m_taskModel, &TaskModel::taskUpdated, this, &MainWindow::updateTaskCount);
+    connect(m_taskModel, &TaskModel::taskUpdated, this, &MainWindow::saveTasks);
     
     // API 服务器信号
     connect(m_apiServer, &ApiServer::taskReceived, this, 
@@ -168,7 +177,7 @@ void MainWindow::setupTrayIcon()
     m_trayMenu->addAction("显示主窗口", this, &MainWindow::showWindow);
     m_trayMenu->addAction("新建任务", this, &MainWindow::onAddTask);
     m_trayMenu->addSeparator();
-    m_trayMenu->addAction("退出", qApp, &QApplication::quit);
+    m_trayMenu->addAction("退出", this, &MainWindow::quitApplication);
     
     m_trayIcon->setContextMenu(m_trayMenu);
     connect(m_trayIcon, &QSystemTrayIcon::activated, this, &MainWindow::onTrayIconActivated);
@@ -233,6 +242,7 @@ void MainWindow::loadSettings()
     m_autoMode = settings.value("autoMode", false).toBool();
     m_autoShowInterval = settings.value("autoShowInterval", 30).toInt();
     m_autoHideDelay = settings.value("autoHideDelay", 5).toInt();
+    m_closeBehavior = settings.value("closeBehavior", 0).toInt();
     
     logToFile(QString("Settings loaded - autoMode: %1, interval: %2 min, delay: %3 sec")
         .arg(m_autoMode).arg(m_autoShowInterval).arg(m_autoHideDelay));
@@ -258,6 +268,7 @@ void MainWindow::saveSettings()
     
     settings.setValue("geometry", saveGeometry());
     settings.setValue("windowState", saveState());
+    settings.setValue("closeBehavior", m_closeBehavior);
 }
 
 void MainWindow::onAddTask()
@@ -327,7 +338,6 @@ void MainWindow::onTaskDoubleClicked(const QModelIndex& index)
         updatedTask.setCreatedAt(task.createdAt());
         
         m_taskModel->updateTask(index.row(), updatedTask);
-        saveTasks();
     }
 }
 
@@ -386,7 +396,6 @@ void MainWindow::onToggleTaskStatus()
     }
     
     m_taskModel->updateTask(index.row(), task);
-    saveTasks();
 }
 
 void MainWindow::onSearchTextChanged(const QString& text)
@@ -511,6 +520,12 @@ void MainWindow::showWindow()
 void MainWindow::hideWindow()
 {
     hide();
+}
+
+void MainWindow::quitApplication()
+{
+    m_forceQuit = true;
+    qApp->quit();
 }
 
 void MainWindow::updateTaskCount()
@@ -685,8 +700,39 @@ void MainWindow::applyStickyNoteStyle()
 
 void MainWindow::closeEvent(QCloseEvent* event)
 {
-    // 最小化到托盘而不是退出
-    if (m_trayIcon->isVisible()) {
+    if (m_forceQuit || !m_trayIcon->isVisible()) {
+        event->accept();
+        return;
+    }
+
+    if (m_closeBehavior == 0) {
+        QMessageBox msgBox(this);
+        msgBox.setWindowTitle("关闭窗口");
+        msgBox.setText("点击关闭按钮时，你希望怎么处理？");
+        msgBox.setInformativeText("这个选择会保存，之后会按同样方式执行。");
+
+        QPushButton* minimizeButton = msgBox.addButton("最小化到托盘", QMessageBox::AcceptRole);
+        QPushButton* exitButton = msgBox.addButton("直接退出", QMessageBox::DestructiveRole);
+        msgBox.addButton(QMessageBox::Cancel);
+        msgBox.setDefaultButton(minimizeButton);
+        msgBox.exec();
+
+        if (msgBox.clickedButton() == nullptr || msgBox.standardButton(msgBox.clickedButton()) == QMessageBox::Cancel) {
+            event->ignore();
+            return;
+        }
+
+        if (msgBox.clickedButton() == exitButton) {
+            m_closeBehavior = 1;
+        } else {
+            m_closeBehavior = 2;
+        }
+
+        QSettings settings("TodoList", "TodoListApp");
+        settings.setValue("closeBehavior", m_closeBehavior);
+    }
+
+    if (m_closeBehavior == 2) {
         hide();
         event->ignore();
         
@@ -694,9 +740,10 @@ void MainWindow::closeEvent(QCloseEvent* event)
         m_manualMode = false;
         m_autoHideTimer->stop();
         logToFile("Window closed to tray, manual mode reset");
-    } else {
-        event->accept();
+        return;
     }
+
+    event->accept();
 }
 
 void MainWindow::changeEvent(QEvent* event)
