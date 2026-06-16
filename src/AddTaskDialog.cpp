@@ -57,5 +57,19 @@ void AddTaskDialog::onAccept()
         m_task.setCreatedAt(QDateTime::currentDateTime());
     }
     
+    // 新建任务时在描述右下方自动追加时间戳
+    if (m_task.id() == 0) {
+        QDateTime now = QDateTime::currentDateTime();
+        QString timestamp = QString("创建于：%1").arg(now.toString("yyyy-MM-dd HH:mm"));
+        QString timestampLine = timestamp.rightJustified(50);
+        QString desc = m_task.description();
+        if (!desc.isEmpty()) {
+            desc += "\n\n" + timestampLine;
+        } else {
+            desc = timestampLine;
+        }
+        m_task.setDescription(desc);
+    }
+    
     accept();
 }
